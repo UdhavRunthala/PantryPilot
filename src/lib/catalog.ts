@@ -1,0 +1,385 @@
+import {
+  type Ingredient,
+  type Recipe,
+  type State,
+  defaults,
+  today,
+} from "./domain";
+export const catalog: Ingredient[] = [
+  {
+    id: "spinach",
+    name: "Spinach",
+    category: "Vegetables",
+    unit: "g",
+    emoji: "🥬",
+    allergens: [],
+    animal: "none",
+    fdcId: 168462,
+  },
+  {
+    id: "tomato",
+    name: "Tomato",
+    category: "Vegetables",
+    unit: "g",
+    emoji: "🍅",
+    allergens: [],
+    animal: "none",
+    fdcId: 170457,
+  },
+  {
+    id: "onion",
+    name: "Onion",
+    category: "Vegetables",
+    unit: "g",
+    emoji: "🧅",
+    allergens: [],
+    animal: "none",
+    fdcId: 170000,
+  },
+  {
+    id: "carrot",
+    name: "Carrot",
+    category: "Vegetables",
+    unit: "g",
+    emoji: "🥕",
+    allergens: [],
+    animal: "none",
+    fdcId: 170393,
+  },
+  {
+    id: "potato",
+    name: "Potato",
+    category: "Vegetables",
+    unit: "g",
+    emoji: "🥔",
+    allergens: [],
+    animal: "none",
+  },
+  {
+    id: "banana",
+    name: "Banana",
+    category: "Fruits",
+    unit: "g",
+    emoji: "🍌",
+    allergens: [],
+    animal: "none",
+    fdcId: 173944,
+  },
+  {
+    id: "milk",
+    name: "Milk",
+    category: "Dairy",
+    unit: "ml",
+    emoji: "🥛",
+    allergens: ["milk", "dairy", "lactose"],
+    animal: "dairy",
+    density: 1.03,
+    fdcId: 171265,
+  },
+  {
+    id: "paneer",
+    name: "Paneer",
+    category: "Dairy",
+    unit: "g",
+    emoji: "🧀",
+    allergens: ["milk", "dairy", "lactose"],
+    animal: "dairy",
+  },
+  {
+    id: "rice",
+    name: "Rice (dry)",
+    category: "Grains",
+    unit: "g",
+    emoji: "🍚",
+    allergens: [],
+    animal: "none",
+  },
+  {
+    id: "oats",
+    name: "Oats (dry)",
+    category: "Grains",
+    unit: "g",
+    emoji: "🌾",
+    allergens: ["gluten"],
+    animal: "none",
+    fdcId: 173904,
+  },
+  {
+    id: "poha",
+    name: "Poha (dry)",
+    category: "Grains",
+    unit: "g",
+    emoji: "🌾",
+    allergens: [],
+    animal: "none",
+  },
+  {
+    id: "lentils",
+    name: "Lentils (dry)",
+    category: "Pulses and legumes",
+    unit: "g",
+    emoji: "🫘",
+    allergens: [],
+    animal: "none",
+    fdcId: 172420,
+  },
+  {
+    id: "besan",
+    name: "Besan",
+    category: "Pulses and legumes",
+    unit: "g",
+    emoji: "🫘",
+    allergens: ["chickpea"],
+    animal: "none",
+  },
+  {
+    id: "eggs",
+    name: "Eggs",
+    category: "Eggs and meat",
+    unit: "pieces",
+    emoji: "🥚",
+    allergens: ["egg", "eggs"],
+    animal: "egg",
+    gramsPerPiece: 50,
+    fdcId: 171287,
+  },
+  {
+    id: "oil",
+    name: "Olive oil",
+    category: "Pantry essentials",
+    unit: "ml",
+    emoji: "🫒",
+    allergens: [],
+    animal: "none",
+    density: 0.92,
+  },
+  {
+    id: "salt",
+    name: "Salt",
+    category: "Spices",
+    unit: "g",
+    emoji: "🧂",
+    allergens: [],
+    animal: "none",
+  },
+  {
+    id: "cumin",
+    name: "Cumin",
+    category: "Spices",
+    unit: "g",
+    emoji: "🌿",
+    allergens: [],
+    animal: "none",
+  },
+  {
+    id: "turmeric",
+    name: "Turmeric",
+    category: "Spices",
+    unit: "g",
+    emoji: "🟡",
+    allergens: [],
+    animal: "none",
+  },
+];
+const ing = (
+  ingredient_id: string,
+  quantity: number,
+  unit: "g" | "ml" | "pieces" = "g",
+) => ({ ingredient_id, quantity, unit });
+export const recipes: Recipe[] = [
+  {
+    id: "poha",
+    name: "Everyday veggie poha",
+    description:
+      "Light, fluffy poha with a little crunch and plenty of comfort.",
+    prep: 5,
+    cook: 15,
+    servings: 1,
+    ingredients: [
+      ing("poha", 70),
+      ing("onion", 40),
+      ing("carrot", 40),
+      ing("oil", 5, "ml"),
+      ing("salt", 1),
+      ing("turmeric", 1),
+    ],
+    steps: [
+      "Rinse poha briefly in a sieve, then leave to soften for 5 minutes.",
+      "Heat oil in a pan. Add chopped onion and carrot and cook until tender.",
+      "Stir in turmeric and salt. Fold in the poha with a splash of water. Cover and steam for 3 minutes. Serve hot.",
+    ],
+    equipment: ["Stove", "Pan"],
+    cuisine: "Indian",
+  },
+  {
+    id: "khichdi",
+    name: "One-pot vegetable khichdi",
+    description:
+      "Your cozy, no-fuss bowl of rice, lentils and seasonal vegetables.",
+    prep: 5,
+    cook: 25,
+    servings: 1,
+    ingredients: [
+      ing("rice", 60),
+      ing("lentils", 40),
+      ing("spinach", 60),
+      ing("carrot", 40),
+      ing("oil", 5, "ml"),
+      ing("salt", 1),
+      ing("turmeric", 1),
+    ],
+    steps: [
+      "Rinse rice and lentils thoroughly. Chop the vegetables.",
+      "Heat oil in a pot. Add vegetables and turmeric, then rice and lentils.",
+      "Add 500 ml water and salt. Cover and simmer for 25 minutes, adding water as needed, until the lentils are fully tender.",
+    ],
+    equipment: ["Stove", "Pot"],
+    cuisine: "Indian",
+  },
+  {
+    id: "paneer",
+    name: "Spinach paneer bhurji",
+    description:
+      "Creamy crumbled paneer meets greens in this quick kitchen favorite.",
+    prep: 5,
+    cook: 15,
+    servings: 1,
+    ingredients: [
+      ing("paneer", 100),
+      ing("spinach", 80),
+      ing("tomato", 60),
+      ing("onion", 40),
+      ing("oil", 5, "ml"),
+      ing("salt", 1),
+      ing("cumin", 1),
+    ],
+    steps: [
+      "Wash spinach and chop it with the onion and tomato. Crumble paneer.",
+      "Heat oil in a pan, add cumin and onion, and cook until softened.",
+      "Add tomato and spinach; cook until tender. Stir in paneer and salt and cook until steaming hot throughout.",
+    ],
+    equipment: ["Stove", "Pan"],
+    cuisine: "Indian",
+  },
+  {
+    id: "oats",
+    name: "Warm banana oats",
+    description: "A gently sweet, three-ingredient start to your morning.",
+    prep: 2,
+    cook: 8,
+    servings: 1,
+    ingredients: [ing("oats", 50), ing("milk", 200, "ml"), ing("banana", 100)],
+    steps: [
+      "Combine oats and milk in a pot.",
+      "Simmer for 5–8 minutes, stirring, until soft and creamy. Add water if needed.",
+      "Top with freshly sliced banana and serve.",
+    ],
+    equipment: ["Stove", "Pot"],
+    cuisine: "Other",
+  },
+  {
+    id: "chilla",
+    name: "Garden besan chilla",
+    description: "Golden, savory chickpea pancakes with fresh vegetables.",
+    prep: 5,
+    cook: 15,
+    servings: 1,
+    ingredients: [
+      ing("besan", 70),
+      ing("onion", 30),
+      ing("tomato", 40),
+      ing("spinach", 30),
+      ing("oil", 5, "ml"),
+      ing("salt", 1),
+    ],
+    steps: [
+      "Whisk besan with 100 ml water and salt into a smooth batter.",
+      "Fold in finely chopped vegetables.",
+      "Heat oil in a pan, spread a thin layer of batter, and cook both sides until golden and cooked through. Repeat with the remaining batter.",
+    ],
+    equipment: ["Stove", "Pan"],
+    cuisine: "Indian",
+  },
+  {
+    id: "egg",
+    name: "Simple egg bhurji",
+    description: "Soft scrambled eggs with tomato, onion and warm spices.",
+    prep: 5,
+    cook: 10,
+    servings: 1,
+    ingredients: [
+      ing("eggs", 2, "pieces"),
+      ing("onion", 40),
+      ing("tomato", 50),
+      ing("oil", 5, "ml"),
+      ing("salt", 1),
+      ing("turmeric", 1),
+    ],
+    steps: [
+      "Heat oil and cook chopped onion and tomato until soft.",
+      "Beat eggs with salt and turmeric, then add to the pan.",
+      "Stir over medium heat until the eggs are fully set throughout.",
+    ],
+    equipment: ["Stove", "Pan"],
+    cuisine: "Indian",
+  },
+];
+export const foodPhotos: Record<string, string> = {
+  poha: "https://images.unsplash.com/photo-1512058564366-18510be2db19?auto=format&fit=crop&w=900&q=85",
+  khichdi:
+    "https://images.unsplash.com/photo-1547592180-85f173990554?auto=format&fit=crop&w=900&q=85",
+  paneer:
+    "https://images.unsplash.com/photo-1631452180519-c014fe946bc7?auto=format&fit=crop&w=900&q=85",
+  oats: "https://images.unsplash.com/photo-1517673400267-0251440c45dc?auto=format&fit=crop&w=900&q=85",
+  chilla:
+    "https://images.unsplash.com/photo-1601050690597-df0568f70950?auto=format&fit=crop&w=900&q=85",
+  egg: "https://images.unsplash.com/photo-1525351484163-7529414344d8?auto=format&fit=crop&w=900&q=85",
+};
+export function emptyState(): State {
+  return {
+    preferences: { ...defaults },
+    inventory: [],
+    entries: [],
+    shopping: [],
+    history: [],
+    planDate: today(),
+  };
+}
+export function demoState(): State {
+  const s = emptyState();
+  s.preferences = { ...defaults, name: "Alex", onboarded: true };
+  s.inventory = catalog.map((i, n) => {
+    const d = new Date();
+    d.setDate(d.getDate() + (n === 0 ? 1 : n === 7 ? 3 : n === 6 ? 2 : 14));
+    return {
+      id: crypto.randomUUID(),
+      ingredient_id: i.id,
+      quantity:
+        i.id === "eggs"
+          ? 6
+          : i.id === "oil"
+            ? 250
+            : i.category === "Spices"
+              ? 50
+              : i.id === "spinach"
+                ? 200
+                : i.id === "paneer"
+                  ? 250
+                  : 500,
+      unit: i.unit,
+      purchase_date: today(),
+      expiry_date: ["spinach", "paneer", "milk", "tomato", "carrot"].includes(
+        i.id,
+      )
+        ? `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`
+        : null,
+      date_type: "estimated",
+      storage: ["Dairy", "Vegetables"].includes(i.category)
+        ? "Fridge"
+        : "Pantry",
+      minimum: i.id === "eggs" ? 2 : i.id === "oats" ? 600 : 50,
+      spoiled: false,
+    };
+  });
+  return s;
+}
