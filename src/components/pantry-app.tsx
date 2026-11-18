@@ -1,5 +1,6 @@
 "use client";
 import { useEffect, useMemo, useRef, useState } from "react";
+import { pagePaths, pageFromPath, type Page } from "@/lib/navigation";
 import {
   ArrowDown,
   ArrowRight,
@@ -38,20 +39,15 @@ import {
   catalog as baseCatalog,
   recipes as library,
   foodPhotos,
-  demoState,
-  emptyState,
 } from "@/lib/catalog";
 import {
   categories,
   units,
   inventorySchema,
-  preferencesSchema,
   today,
   status,
-  usable,
   requirements,
   shortages,
-  deduct,
   nutrition,
   energyTarget,
   rank,
@@ -67,26 +63,23 @@ import {
   type Ingredient,
   type Shopping,
 } from "@/lib/domain";
-type Page =
-  "Dashboard" | "My Kitchen" | "Meal Planner" | "Shopping List" | "Profile";
 const nav = [
   ["Dashboard", Home],
   ["My Kitchen", ShoppingBasket],
   ["Meal Planner", CalendarDays],
   ["Shopping List", ShoppingCart],
 ] as const;
-const key = "pantrypilot-demo-v1";
 const num = (n: number) => Number(n.toFixed(1));
 export default function PantryApp({
-  cloudConfigured,
-  authenticated,
+  initialState,
+  initialPage,
 }: {
-  cloudConfigured: boolean;
-  authenticated: boolean;
+  initialState: State;
+  initialPage: Page;
 }) {
-  const [state, setState] = useState<State | null>(null);
-  const [demo, setDemo] = useState(!cloudConfigured);
-  const [page, setPage] = useState<Page>("Dashboard");
+  const [state, setState] = useState<State | null>(initialState);
+  const [page, setPage] = useState<Page>(initialPage);
+  const [ready, setReady] = useState(false);
   const [busy, setBusy] = useState(false);
   const lock = useRef(false);
   const [error, setError] = useState("");
@@ -109,60 +102,37 @@ export default function PantryApp({
   async function refresh(date = today()) {
     const res = await fetch(`/api/state?date=${date}`);
     const data = await res.json();
+    if (res.status === 401) {
+      window.location.assign("/login");
+      throw Error("Please sign in again.");
+    }
     if (!res.ok) throw Error(data.error);
     if (data.catalog) setCatalog(data.catalog);
     setState(data);
   }
   useEffect(() => {
-    if (demo) {
-      try {
-        const saved = localStorage.getItem(key);
-        if (saved) {
-          const data = JSON.parse(saved) as State;
-          preferencesSchema.parse(data.preferences);
-          data.inventory.forEach((i) => inventorySchema.parse(i));
-          if (data.planDate !== today()) {
-            data.entries = [];
-            data.planDate = today();
-          }
-          setState(data);
-        } else setState(demoState());
-      } catch {
-        setError(
-          "Your local demo could not be restored. A fresh sample kitchen is loaded.",
-        );
-        setState(demoState());
-      }
-    } else if (authenticated) refresh().catch((e) => setError(e.message));
-  }, [demo, authenticated]);
-  useEffect(() => {
-    if (state && demo) {
-      try {
-        localStorage.setItem(key, JSON.stringify(state));
-      } catch {
-        setError(
-          "Browser storage is full or disabled. Changes cannot persist.",
-        );
-      }
-    }
-  }, [state, demo]);
+    setReady(true);
+    refresh().catch((e) => setError(e.message));
+    const back = () => {
+      setPage(pageFromPath(window.location.pathname));
+      setQuery("");
+      setRescue(false);
+    };
+    window.addEventListener("popstate", back);
+    return () => window.removeEventListener("popstate", back);
+  }, []);
   useEffect(() => {
     if (!toast) return;
     const t = setTimeout(() => setToast(""), 5000);
     return () => clearTimeout(t);
   }, [toast]);
-  async function perform(
-    command: Record<string, unknown>,
-    local: (s: State) => State,
-    message: string,
-  ) {
+  async function perform(command: Record<string, unknown>, message: string) {
     if (lock.current || !state) return false;
     lock.current = true;
     setBusy(true);
     setError("");
     try {
-      if (demo) setState(local(state));
-      else {
+      {
         const r = await fetch(`/api/state?date=${state.planDate}`, {
           method: "POST",
           headers: { "Content-Type": "application/json" },
@@ -174,7 +144,7 @@ export default function PantryApp({
           command.action === "signout" ||
           command.action === "delete-account"
         ) {
-          window.location.assign("/");
+          window.location.assign("/login");
           return true;
         }
         await refresh(state.planDate);
@@ -225,6 +195,7 @@ export default function PantryApp({
   );
   function go(p: Page) {
     setPage(p);
+    window.history.pushState(null, "", pagePaths[p]);
     setQuery("");
     setRescue(false);
   }
@@ -236,7 +207,7 @@ export default function PantryApp({
     try {
       let next = library;
       let cat = catalog;
-      if (!demo) {
+      {
         const r = await fetch("/api/recipes", { method: "POST" });
         const d = await r.json();
         if (!r.ok) throw Error(d.error);
@@ -244,7 +215,7 @@ export default function PantryApp({
         cat = d.catalog;
         setCatalog(cat);
         setSource(d.source);
-      } else setSource("Demo · curated recipe library, no AI request");
+      }
       setRecipes(next);
       const prepared = state.entries.filter((e) => e.prepared);
       const entries = [
@@ -257,12 +228,11 @@ export default function PantryApp({
       setBusy(false);
       await perform(
         { action: "plan", date: state.planDate, entries },
-        (s) => ({ ...s, entries }),
         entries.length < 3
           ? "Saved a partial plan. Add groceries or review your restrictions to fill the remaining meals."
           : "Your meal plan is ready. A little less to think about.",
       );
-      setPage("Meal Planner");
+      go("Meal Planner");
     } catch (e) {
       setError(e instanceof Error ? e.message : "Could not generate meals");
     } finally {
@@ -290,7 +260,6 @@ export default function PantryApp({
     if (
       await perform(
         { action: "plan", date: state.planDate, entries },
-        (s) => ({ ...s, entries }),
         `${r.name} added to your plan`,
       )
     )
@@ -300,50 +269,13 @@ export default function PantryApp({
     if (
       await perform(
         { action: "preferences", value: p },
-        (s) => ({ ...s, preferences: p }),
         "Your preferences are saved",
       )
     ) {
       setOnboarding(false);
-      setPage("Dashboard");
+      go("Dashboard");
     }
   }
-  if (!demo && !authenticated)
-    return (
-      <main className="welcome">
-        <a className="brand" href="/">
-          <span className="brand-icon">
-            <Sprout />
-          </span>
-          Pantry<span>Pilot</span>
-        </a>
-        <div className="welcome-content">
-          <div className="eyebrow">A LITTLE PLANNING. A HAPPIER KITCHEN.</div>
-          <h1>
-            Good food starts
-            <br />
-            with what you have.
-          </h1>
-          <p>
-            Your groceries, meals, and shopping list. Finally on the same page.
-          </p>
-          <a className="button button-primary" href="/auth/login">
-            Continue with Google <ArrowRight size={18} />
-          </a>
-          <Button variant="outline" onClick={() => setDemo(true)}>
-            Explore the local demo
-          </Button>
-          <p className="note">
-            Your kitchen is private. No extra password to remember.
-          </p>
-        </div>
-        <img
-          src={foodPhotos.khichdi}
-          alt="A colorful bowl of fresh food"
-          className="welcome-photo"
-        />
-      </main>
-    );
   if (!state)
     return (
       <main className="loading-page">
@@ -472,7 +404,6 @@ export default function PantryApp({
                     );
                     void perform(
                       { action: "plan", date: state!.planDate, entries },
-                      (s) => ({ ...s, entries }),
                       "Serving size updated",
                     );
                   }}
@@ -490,12 +421,6 @@ export default function PantryApp({
                   onClick={() =>
                     perform(
                       { action: "eaten", id: entry.id },
-                      (s) => ({
-                        ...s,
-                        entries: s.entries.map((e) =>
-                          e.id === entry.id ? { ...e, eaten: true } : e,
-                        ),
-                      }),
                       "Meal logged as eaten",
                     )
                   }
@@ -524,7 +449,6 @@ export default function PantryApp({
                     );
                     void perform(
                       { action: "plan", date: state!.planDate, entries },
-                      (s) => ({ ...s, entries }),
                       "Meal removed. Choose a replacement from the recipe library.",
                     );
                   }}
@@ -539,7 +463,7 @@ export default function PantryApp({
     );
   }
   return (
-    <div className="app-shell">
+    <div className="app-shell" inert={!ready} data-ready={ready}>
       <a href="#main" className="skip-link">
         Skip to content
       </a>
@@ -599,9 +523,7 @@ export default function PantryApp({
             </span>
             <span>
               <strong>{state.preferences.name}</strong>
-              <small>
-                {demo ? "Your demo kitchen" : "Your personal kitchen"}
-              </small>
+              <small>{"Your personal kitchen"}</small>
             </span>
             <ChevronRight size={16} />
           </button>
@@ -642,27 +564,6 @@ export default function PantryApp({
           </div>
         </header>
         <main id="main" className="main-content">
-          {demo && (
-            <div className="demo-banner">
-              <span>
-                <span className="dot" />
-                Local demo · Sample groceries, saved only in this browser.
-              </span>
-              <button
-                onClick={() => {
-                  if (cloudConfigured) {
-                    setDemo(false);
-                    setState(null);
-                  } else
-                    setToast(
-                      "Connect Supabase using .env.local to enable Google sign-in and cloud sync. See README.md.",
-                    );
-                }}
-              >
-                Connect your kitchen <ArrowUpRight size={13} />
-              </button>
-            </div>
-          )}
           {error && (
             <div role="alert" className="error-banner">
               {error}
@@ -1115,25 +1016,6 @@ export default function PantryApp({
                                     action: "inventory",
                                     value: { ...i, spoiled: true },
                                   },
-                                  (s) => ({
-                                    ...s,
-                                    inventory: s.inventory.map((x) =>
-                                      x.id === i.id
-                                        ? { ...x, spoiled: true }
-                                        : x,
-                                    ),
-                                    history: [
-                                      {
-                                        id: crypto.randomUUID(),
-                                        ingredient_id: i.ingredient_id,
-                                        quantity: 0,
-                                        unit: i.unit,
-                                        reason: "Marked spoiled",
-                                        created_at: new Date().toISOString(),
-                                      },
-                                      ...s.history,
-                                    ],
-                                  }),
                                   "Marked spoiled. Excluded from meal suggestions.",
                                 )
                               }
@@ -1173,19 +1055,9 @@ export default function PantryApp({
                         value={state.planDate}
                         onChange={(e) => {
                           if (!e.target.value) return;
-                          if (demo) {
-                            setToast(
-                              "The demo supports one saved day at a time. Cloud accounts retain each day.",
-                            );
-                            setState({
-                              ...state,
-                              planDate: e.target.value,
-                              entries: [],
-                            });
-                          } else
-                            refresh(e.target.value).catch((e) =>
-                              setError(e.message),
-                            );
+                          refresh(e.target.value).catch((e) =>
+                            setError(e.message),
+                          );
                         }}
                       />
                     </label>
@@ -1256,10 +1128,6 @@ export default function PantryApp({
                           const items = shoppingSuggestions(state);
                           void perform(
                             { action: "shopping", items },
-                            (s) => ({
-                              ...s,
-                              shopping: [...s.shopping, ...items],
-                            }),
                             "Missing ingredients added to your shopping list",
                           );
                         }}
@@ -1324,10 +1192,6 @@ export default function PantryApp({
                         }
                         void perform(
                           { action: "shopping", items },
-                          (s) => ({
-                            ...s,
-                            shopping: [...s.shopping, ...items],
-                          }),
                           "Shopping suggestions added",
                         );
                       }}
@@ -1375,14 +1239,6 @@ export default function PantryApp({
                                       action: "shopping",
                                       items: [{ ...s, checked: !s.checked }],
                                     },
-                                    (x) => ({
-                                      ...x,
-                                      shopping: x.shopping.map((i) =>
-                                        i.id === s.id
-                                          ? { ...i, checked: !i.checked }
-                                          : i,
-                                      ),
-                                    }),
                                     "Shopping list updated",
                                   )
                                 }
@@ -1410,39 +1266,6 @@ export default function PantryApp({
                                   onClick={() =>
                                     perform(
                                       { action: "purchase", id: s.id },
-                                      (x) => ({
-                                        ...x,
-                                        shopping: x.shopping.filter(
-                                          (i) => i.id !== s.id,
-                                        ),
-                                        inventory: [
-                                          ...x.inventory,
-                                          {
-                                            id: crypto.randomUUID(),
-                                            ingredient_id: s.ingredient_id,
-                                            quantity: s.quantity,
-                                            unit: s.unit,
-                                            purchase_date: today(),
-                                            expiry_date: null,
-                                            date_type: "estimated",
-                                            storage: "Pantry",
-                                            minimum: 0,
-                                            spoiled: false,
-                                          },
-                                        ],
-                                        history: [
-                                          {
-                                            id: crypto.randomUUID(),
-                                            ingredient_id: s.ingredient_id,
-                                            quantity: s.quantity,
-                                            unit: s.unit,
-                                            reason: "Purchased",
-                                            created_at:
-                                              new Date().toISOString(),
-                                          },
-                                          ...x.history,
-                                        ],
-                                      }),
                                       "Moved to your kitchen. Add storage and date details when you’re ready.",
                                     )
                                   }
@@ -1458,12 +1281,6 @@ export default function PantryApp({
                                 onClick={() =>
                                   perform(
                                     { action: "remove-shopping", id: s.id },
-                                    (x) => ({
-                                      ...x,
-                                      shopping: x.shopping.filter(
-                                        (i) => i.id !== s.id,
-                                      ),
-                                    }),
                                     "Item removed",
                                   )
                                 }
@@ -1538,9 +1355,9 @@ export default function PantryApp({
                     <section className="panel profile-panel">
                       <h3>Your data, your choice.</h3>
                       <p>
-                        {demo
-                          ? "This demo stores sample data in this browser. It does not sync to an account."
-                          : "Your profile, inventory, and meals are stored in your Supabase account with user-scoped access controls."}
+                        {
+                          "Your profile, inventory, and meals are saved to your account on the server. Sign in again to pick up where you left off."
+                        }
                       </p>
                       <p className="note">
                         Optional energy estimates use Mifflin–St Jeor × activity
@@ -1548,37 +1365,31 @@ export default function PantryApp({
                         goals. Steps and exercise details are contextual and are
                         not counted again. Not a medical prescription.
                       </p>
-                      {!demo && (
+                      {
                         <Button
                           variant="outline"
                           disabled={busy}
                           onClick={() =>
-                            perform(
-                              { action: "signout" },
-                              (s) => s,
-                              "Signed out",
-                            )
+                            perform({ action: "signout" }, "Signed out")
                           }
                         >
                           <LogOut size={16} />
                           Sign out
                         </Button>
-                      )}
+                      }
                     </section>
                     <section className="panel profile-panel danger-zone">
-                      <h3>
-                        {demo ? "Reset this demo" : "Delete your account"}
-                      </h3>
+                      <h3>{"Delete your account"}</h3>
                       <p>
-                        {demo
-                          ? "Clear local demo data and start onboarding with an empty kitchen."
-                          : "Permanently remove your account and associated kitchen, profile, and meal data."}
+                        {
+                          "Permanently remove your account and associated kitchen, profile, and meal data."
+                        }
                       </p>
                       <Button
                         variant="danger"
                         onClick={() => setDeleteConfirm(true)}
                       >
-                        {demo ? "Reset demo" : "Delete account"}
+                        {"Delete account"}
                       </Button>
                     </section>
                   </div>
@@ -1645,31 +1456,6 @@ export default function PantryApp({
             if (
               await perform(
                 { action: "inventory", value, remove },
-                (s) => ({
-                  ...s,
-                  inventory: remove
-                    ? s.inventory.filter((i) => i.id !== value.id)
-                    : old
-                      ? s.inventory.map((i) => (i.id === value.id ? value : i))
-                      : [...s.inventory, value],
-                  history: [
-                    {
-                      id: crypto.randomUUID(),
-                      ingredient_id: value.ingredient_id,
-                      quantity: remove
-                        ? -value.quantity
-                        : value.quantity - (old?.quantity ?? 0),
-                      unit: value.unit,
-                      reason: remove
-                        ? "Removed"
-                        : old
-                          ? "Inventory correction"
-                          : "Added groceries",
-                      created_at: new Date().toISOString(),
-                    },
-                    ...s.history,
-                  ],
-                }),
                 remove ? "Grocery removed" : "Your kitchen is up to date",
               )
             )
@@ -1755,7 +1541,6 @@ export default function PantryApp({
                 }
                 void perform(
                   { action: "shopping", items },
-                  (s) => ({ ...s, shopping: [...s.shopping, ...items] }),
                   "Missing ingredients added",
                 );
               }}
@@ -1780,28 +1565,6 @@ export default function PantryApp({
             if (
               await perform(
                 { action: "cook", id: cooking.id, actual },
-                (s) => {
-                  if (s.entries.find((e) => e.id === cooking.id)?.prepared)
-                    return s;
-                  return {
-                    ...s,
-                    inventory: deduct(s.inventory, actual),
-                    entries: s.entries.map((e) =>
-                      e.id === cooking.id ? { ...e, prepared: true } : e,
-                    ),
-                    history: [
-                      ...actual.map((i) => ({
-                        id: crypto.randomUUID(),
-                        ingredient_id: i.ingredient_id,
-                        quantity: -i.quantity,
-                        unit: i.unit,
-                        reason: "Cooked meal",
-                        created_at: new Date().toISOString(),
-                      })),
-                      ...s.history,
-                    ],
-                  };
-                },
                 "Meal prepared. Your kitchen quantities are updated.",
               )
             )
@@ -1819,12 +1582,6 @@ export default function PantryApp({
             if (
               await perform(
                 { action: "shopping", items: [item] },
-                (s) => ({
-                  ...s,
-                  shopping: s.shopping.some((i) => i.id === item.id)
-                    ? s.shopping.map((i) => (i.id === item.id ? item : i))
-                    : [...s.shopping, item],
-                }),
                 "Shopping list updated",
               )
             )
@@ -1863,12 +1620,8 @@ export default function PantryApp({
       )}
       {deleteConfirm && (
         <Modal
-          title={demo ? "Start fresh?" : "Permanently delete your account?"}
-          description={
-            demo
-              ? "This clears the demo data in this browser."
-              : "This removes your personal data and cannot be undone."
-          }
+          title={"Permanently delete your account?"}
+          description={"This removes your personal data and cannot be undone."}
           onClose={() => setDeleteConfirm(false)}
         >
           <div className="modal-actions">
@@ -1879,19 +1632,10 @@ export default function PantryApp({
               variant="danger"
               disabled={busy}
               onClick={() => {
-                if (demo) {
-                  setState(emptyState());
-                  setDeleteConfirm(false);
-                  go("Dashboard");
-                } else
-                  void perform(
-                    { action: "delete-account" },
-                    (s) => s,
-                    "Account deleted",
-                  );
+                void perform({ action: "delete-account" }, "Account deleted");
               }}
             >
-              {demo ? "Clear demo and start" : "Delete permanently"}
+              {"Delete permanently"}
             </Button>
           </div>
         </Modal>

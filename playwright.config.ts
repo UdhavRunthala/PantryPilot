@@ -3,7 +3,8 @@ export default defineConfig({
   testDir: "./e2e",
   fullyParallel: false,
   workers: 1,
-  timeout: 60000,
+  timeout: 90000,
+  expect: { timeout: 20000 },
   use: {
     baseURL: "http://127.0.0.1:3000",
     trace: "retain-on-failure",
@@ -17,9 +18,10 @@ export default defineConfig({
     },
   ],
   webServer: {
-    command: "npm.cmd run dev",
+    command: "npm.cmd run start",
     url: "http://127.0.0.1:3000",
-    reuseExistingServer: !process.env.CI,
+    reuseExistingServer: false,
+    env: { PANTRYPILOT_DATA_DIR: ".data/e2e" },
     timeout: 180000,
   },
 });

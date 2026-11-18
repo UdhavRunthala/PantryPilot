@@ -1,16 +1,6 @@
-import { configured, serverClient } from "@/lib/supabase/server";
-import PantryApp from "@/components/pantry-app";
+import { redirect } from "next/navigation";
+import { currentUser } from "@/lib/auth";
 export const dynamic = "force-dynamic";
 export default async function Page() {
-  let authenticated = false;
-  if (configured()) {
-    const db = await serverClient();
-    const {
-      data: { user },
-    } = await db.auth.getUser();
-    authenticated = !!user;
-  }
-  return (
-    <PantryApp cloudConfigured={configured()} authenticated={authenticated} />
-  );
+  redirect((await currentUser()) ? "/dashboard" : "/login");
 }

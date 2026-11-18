@@ -1,23 +1,19 @@
 import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
-import { serverClient, configured } from "@/lib/supabase/server";
-import { readState } from "@/lib/repository";
+import { currentUser } from "@/lib/auth";
+import { getState, takeAIToken } from "@/lib/backend";
 import { catalog, recipes } from "@/lib/catalog";
 import { recipeSchema, safety, rank, usable } from "@/lib/domain";
 import { nutritionCatalog } from "@/lib/nutrition-server";
+import { sameOrigin } from "@/lib/request-security";
 export async function POST(req: NextRequest) {
-  if (req.headers.get("origin") !== new URL(req.url).origin)
+  if (!sameOrigin(req))
     return NextResponse.json({ error: "Invalid origin" }, { status: 403 });
-  if (!configured())
-    return NextResponse.json({ error: "Sign in required" }, { status: 401 });
-  const db = await serverClient();
-  const {
-    data: { user },
-  } = await db.auth.getUser();
+  const user = await currentUser();
   if (!user)
     return NextResponse.json({ error: "Sign in required" }, { status: 401 });
   try {
-    const state = await readState(db, user.id);
+    const state = await getState(user.id);
     const fallback = recipes
       .filter((r) => safety(r, state.preferences, catalog))
       .sort(
@@ -28,8 +24,8 @@ export async function POST(req: NextRequest) {
     let selected = fallback,
       source = "Curated recipe library";
     if (process.env.OPENAI_API_KEY) {
-      const limit = await db.rpc("take_ai_token");
-      if (limit.error || !limit.data)
+      const limit = await takeAIToken(user.id);
+      if (!limit)
         return NextResponse.json({
           recipes: fallback,
           catalog: await nutritionCatalog(),

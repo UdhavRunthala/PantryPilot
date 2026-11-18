@@ -1,21 +1,25 @@
 # Verification record
 
-Executed on Windows with Node.js 24.11.1 on 16 November 2026.
+Updated on 17 November 2026 on Windows with Node.js 24.11.1.
 
 | Check | Result |
 | --- | --- |
-| TypeScript (`npm run typecheck`) | Passed |
-| Domain tests | 20 passed |
-| Embedded PostgreSQL migration / RLS / transaction tests | 8 passed |
-| Live Supabase integration tests | 5 skipped; no test-project credentials supplied |
-| Dependency audit after upgrading Vitest | 0 reported vulnerabilities |
-| Production build (`next build --webpack`) | Passed on final source; all routes compiled |
-| Desktop/mobile Playwright workflows | 8 passed (4 desktop + 4 mobile), final run 28.5 seconds |
+| Production build and TypeScript | Passed |
+| Domain, database, account, and origin tests | 36 passed |
+| Desktop browser workflows | 5 passed |
+| Mobile browser workflows | 5 passed |
+| Live Supabase tests | 5 skipped; credentials not supplied |
 
-The embedded database suite applies the actual migration after replacing only the unavailable `pgcrypto` extension declaration (PGlite has built-in UUID generation), and supplies a minimal Auth schema and roles. RLS runs as the `authenticated` role with distinct JWT subject settings. This verifies PostgreSQL semantics locally, not Supabase infrastructure or Google OAuth.
+The application now uses real email/password accounts and server-side persistence. New accounts have empty kitchens. Browser-only demo storage, sample account data, demo banners, and reset-demo controls have been removed.
 
-Browser tests use real Microsoft Edge with desktop and phone-sized Chromium contexts. They exercise local demo persistence, onboarding, grocery additions, plan generation/save, cooking confirmation, separate eaten logs, shopping purchases, and responsive layout. Initial mobile tests exposed expanding grid columns and an overflowing dialog. Both were corrected, and the regression now compares layout width against the actual device viewport. A run coinciding with an execution-host stall was repeated; the final complete suite passed with no retries. Screenshots are saved in `docs/screenshots/`.
+The embedded PostgreSQL suite applies the actual migration, supplies Auth roles, and verifies row-level ownership, rollback, idempotency, purchase transfer, and deletion cascades. Account tests additionally verify scrypt password checks, opaque sessions, logout, account isolation, and data/session persistence after closing and reopening the database. Origin-validation tests cover the host behind the Next.js proxy and reject foreign/missing origins.
 
-The local preview returned HTTP 200 and was stopped after verification. Restart it with `npm.cmd run dev`. Turbopack failed its worker connection on this host; the checked-in development/build scripts use Webpack and both served/compiled successfully.
+Browser tests use Microsoft Edge with desktop and mobile Chromium contexts and actual signup/login requests. Their database is isolated at `.data/e2e`. The tests cover onboarding, grocery addition/editing, reload persistence, logout/login, meal planning/cooking/eaten logs, shopping transfer, date-specific plans, protected routes, CSRF rejection, account deletion, and login layout overflow. The Playwright server runs the production build.
 
-External services not verified: Google OAuth, hosted Supabase sessions and concurrent multi-connection transactions, real OpenAI responses, USDA responses, Vercel deployment, and account deletion against a hosted Auth service. Their integration code and setup instructions are present. No deployment or live-cloud success is claimed.
+External services remain unverified: hosted Supabase sessions and email confirmation, Google OAuth, live OpenAI and USDA responses, and Vercel deployment. Five live Supabase tests skip without dedicated test-project credentials. Local persisted accounts work without those credentials. Nutrition coverage remains limited as documented in README; unavailable values are never fabricated.
+
+The local server used for testing is stopped afterward. Start the app with `npm.cmd run dev`.
+
+Initial browser runs exposed an origin-validation mismatch behind the Next.js proxy and controls accepting clicks before hydration. Both were fixed. Browser checks were then run against the production build with cold database startup allowed and assertions that wait for server-saved checkbox state. Login screenshots are in `docs/screenshots/login-desktop.png` and `login-mobile.png`; older dashboard screenshots predate this account-based revision.
+
+Final standalone test run: 36 passed, 5 live-service tests skipped (51.7 seconds). Final production browser run: 10 passed (3.7 minutes), no retries. An earlier database setup timed out while a build ran concurrently; the sequential rerun passed.

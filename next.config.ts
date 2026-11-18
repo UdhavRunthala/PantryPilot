@@ -1,5 +1,7 @@
 import type { NextConfig } from "next";
 const config: NextConfig = {
+  serverExternalPackages: ["@electric-sql/pglite"],
+  outputFileTracingIncludes: { "/*": ["./supabase/migrations/*.sql"] },
   devIndicators: false,
   async headers() {
     return [

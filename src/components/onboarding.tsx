@@ -1,5 +1,5 @@
 "use client";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import {
   ArrowLeft,
   ArrowRight,
@@ -28,6 +28,8 @@ export default function Onboarding({
   onSave: (p: Preferences) => void;
   busy: boolean;
 }) {
+  const [ready, setReady] = useState(false);
+  useEffect(() => setReady(true), []);
   const [step, setStep] = useState(0);
   const [p, setP] = useState(initial);
   const [error, setError] = useState("");
@@ -407,7 +409,7 @@ export default function Onboarding({
           </Button>
         )}
         <Button
-          disabled={busy}
+          disabled={busy || !ready}
           onClick={() => {
             if (step < 5) {
               setStep(step + 1);
